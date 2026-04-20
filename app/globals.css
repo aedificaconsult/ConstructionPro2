@@ -1,0 +1,289 @@
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   DESIGN TOKENS
+   ============================================================ */
+:root {
+  --gold:          #C8A96E;
+  --gold-light:    #E8C98E;
+  --gold-dark:     #A8893E;
+  --navy-dark:     #111520;
+  --navy:          #1A1F2E;
+  --surface:       #232838;
+  --surface-light: #2D3447;
+  --border:        #3A4255;
+  --text:          #E8EAF0;
+  --text-muted:    #8892A4;
+  --text-subtle:   #5A6475;
+  --success:       #4CAF82;
+  --warning:       #F5A623;
+  --danger:        #E05656;
+  --info:          #5B8DEF;
+}
+
+/* ============================================================
+   BASE RESET
+   ============================================================ */
+*, *::before, *::after { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background-color: var(--navy-dark);
+  color: var(--text);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ============================================================
+   SCROLLBAR
+   ============================================================ */
+::-webkit-scrollbar          { width: 6px; height: 6px; }
+::-webkit-scrollbar-track    { background: var(--navy); }
+::-webkit-scrollbar-thumb    { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--gold); }
+
+/* ============================================================
+   TYPOGRAPHY
+   ============================================================ */
+.font-display { font-family: 'Syne', sans-serif; }
+
+h1, h2, h3 { font-family: 'Syne', sans-serif; font-weight: 700; }
+
+/* ============================================================
+   COMPONENTS
+   ============================================================ */
+
+/* --- Buttons --- */
+.btn {
+  @apply inline-flex items-center gap-1.5 px-4 py-2 rounded-lg font-medium text-sm cursor-pointer
+         border-0 transition-all duration-150 select-none;
+  font-family: 'DM Sans', sans-serif;
+}
+.btn:active { transform: scale(0.97); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none !important; }
+
+.btn-primary {
+  background: var(--gold);
+  color: var(--navy-dark);
+}
+.btn-primary:hover {
+  background: var(--gold-light);
+  box-shadow: 0 4px 16px rgba(200, 169, 110, 0.3);
+}
+
+.btn-secondary {
+  background: var(--surface-light);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+.btn-secondary:hover {
+  background: var(--border);
+  border-color: rgba(200, 169, 110, 0.4);
+}
+
+.btn-danger {
+  background: rgba(224, 86, 86, 0.12);
+  color: var(--danger);
+  border: 1px solid rgba(224, 86, 86, 0.25);
+}
+.btn-danger:hover { background: rgba(224, 86, 86, 0.2); }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-muted);
+}
+.btn-ghost:hover { color: var(--text); background: var(--surface-light); }
+
+.btn-sm  { @apply px-2.5 py-1.5 text-xs; }
+.btn-icon { @apply p-1.5 rounded-lg; }
+
+/* --- Cards --- */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.card-hover:hover {
+  border-color: rgba(200, 169, 110, 0.3);
+  box-shadow: 0 4px 24px rgba(200, 169, 110, 0.07);
+}
+
+/* --- Form inputs --- */
+.input, .select-input, textarea {
+  @apply w-full px-3 py-2.5 rounded-lg text-sm outline-none transition-all;
+  background: var(--navy);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+}
+.input:focus, .select-input:focus, textarea:focus {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(200, 169, 110, 0.1);
+}
+.input::placeholder, textarea::placeholder { color: var(--text-subtle); }
+.select-input option { background: var(--navy); color: var(--text); }
+
+.form-label {
+  @apply block text-xs font-semibold uppercase tracking-wider mb-1.5;
+  color: var(--text-muted);
+}
+
+/* --- Badge --- */
+.badge {
+  @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold;
+}
+
+/* --- Progress --- */
+.progress-track {
+  background: var(--navy);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* --- Table --- */
+.data-table { @apply w-full border-collapse; }
+.data-table th {
+  @apply px-4 py-2.5 text-left;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-muted);
+  background: var(--navy);
+  border-bottom: 1px solid var(--border);
+}
+.data-table td {
+  @apply px-4 py-3;
+  font-size: 13.5px;
+  color: #C8CDD8;
+  border-bottom: 1px solid rgba(58, 66, 85, 0.5);
+}
+.data-table tr:hover td { background: rgba(44, 52, 72, 0.5); }
+.data-table tbody tr:last-child td { border-bottom: none; }
+
+/* --- Modal --- */
+.modal-overlay {
+  @apply fixed inset-0 z-50 flex items-center justify-center p-5;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  animation: fadeOverlay 0.15s ease forwards;
+}
+@keyframes fadeOverlay {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.modal-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  max-height: 88vh;
+  overflow-y: auto;
+  animation: scaleIn 0.2s ease forwards;
+}
+
+/* --- Sidebar nav --- */
+.nav-item {
+  @apply flex items-center gap-2.5 px-3 py-2.5 rounded-lg cursor-pointer transition-all;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+.nav-item:hover { background: var(--surface-light); color: var(--text); }
+.nav-item.active {
+  background: rgba(200, 169, 110, 0.1);
+  color: var(--gold);
+  border: 1px solid rgba(200, 169, 110, 0.2);
+}
+
+/* --- Animations --- */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(-10px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.animate-fade-in  { animation: fadeIn  0.3s ease forwards; }
+.animate-slide-in { animation: slideIn 0.3s ease forwards; }
+.animate-scale-in { animation: scaleIn 0.2s ease forwards; }
+
+/* --- Gold top accent --- */
+.gold-top-bar {
+  height: 3px;
+  background: linear-gradient(90deg, var(--gold), var(--gold-light), rgba(200,169,110,0.2));
+}
+
+/* --- Stat card --- */
+.stat-card {
+  background: linear-gradient(135deg, var(--surface) 0%, #1E2335 100%);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  position: relative;
+  overflow: hidden;
+}
+.stat-card::after {
+  content: '';
+  position: absolute;
+  top: 0; right: 0;
+  width: 80px; height: 80px;
+  border-radius: 50%;
+  background: rgba(200, 169, 110, 0.04);
+  transform: translate(30%, -30%);
+}
+
+/* --- Empty state --- */
+.empty-state {
+  @apply flex flex-col items-center justify-center text-center py-20 px-6;
+}
+
+/* --- Range input --- */
+input[type="range"] {
+  accent-color: var(--gold);
+  height: 6px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+/* --- Divider --- */
+.divider {
+  height: 1px;
+  background: var(--border);
+}
+.divider-gold {
+  height: 2px;
+  background: linear-gradient(90deg, var(--gold), rgba(200,169,110,0.2), transparent);
+}
+
+/* --- Tag chip --- */
+.chip {
+  @apply inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold;
+}
+
+/* --- Tooltip text --- */
+.text-gold    { color: var(--gold); }
+.text-muted   { color: var(--text-muted); }
+.text-subtle  { color: var(--text-subtle); }
+.text-success { color: var(--success); }
+.text-danger  { color: var(--danger); }
+.text-warning { color: var(--warning); }
+.text-info    { color: var(--info); }
