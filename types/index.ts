@@ -77,6 +77,20 @@ export interface ProgressSnapshot {
   recorded_at: string;
 }
 
+export interface TakeOffRow {
+  id: string;
+  project_item_id: string;
+  description: string;
+  number_of_items: number;
+  length: number | null;
+  width: number | null;
+  height: number | null;
+  unit_mass_per_meter: number | null;
+  calculated_quantity: number;
+  created_at: string;
+  updated_at: string;
+}
+
 // ============================================================
 // View Types
 // ============================================================
@@ -88,6 +102,7 @@ export interface ProjectSummary {
   status: ProjectStatus;
   start_date: string | null;
   end_date: string | null;
+  created_at: string;
   item_count: number;
   total_contract_amount: number;
   total_executed_amount: number;
@@ -138,11 +153,18 @@ export interface WorkItemFormData {
 export interface AddProjectItemFormData {
   work_item_id: string;
   contract_quantity: string;
-  contract_amount: string;
 }
 
 export interface UpdateProgressFormData {
-  executed_amount: string;
   executed_quantity: string;
   note: string;
+}
+
+export interface TakeOffRowFormData {
+  description: string;
+  number_of_items: string;
+  length: string;
+  width: string;
+  height: string;
+  unit_mass_per_meter: string;
 }

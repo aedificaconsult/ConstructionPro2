@@ -109,10 +109,20 @@ export async function getProjectItems(projectId: string) {
 export async function addItemToProject(
   projectId: string,
   workItemId: string,
-  contractAmount: number,
   contractQuantity: number
 ) {
   const supabase = createClient();
+  
+  // Get the work item rate
+  const { data: workItem, error: wiError } = await supabase
+    .from('work_items')
+    .select('rate')
+    .eq('id', workItemId)
+    .single();
+  if (wiError) throw wiError;
+  
+  const contractAmount = contractQuantity * workItem.rate;
+  
   const { data, error } = await supabase
     .from('project_items')
     .insert({
@@ -133,12 +143,28 @@ export async function addItemToProject(
 export async function updateExecutedAmount(
   projectItemId: string,
   projectId: string,
-  executedAmount: number,
   executedQuantity: number,
   note?: string
 ) {
   const supabase = createClient();
-
+  
+  // Get the work item rate
+  const { data: projectItem, error: piError } = await supabase
+    .from('project_items')
+    .select('work_item_id')
+    .eq('id', projectItemId)
+    .single();
+  if (piError) throw piError;
+  
+  const { data: workItem, error: wiError } = await supabase
+    .from('work_items')
+    .select('rate')
+    .eq('id', projectItem.work_item_id)
+    .single();
+  if (wiError) throw wiError;
+  
+  const executedAmount = executedQuantity * workItem.rate;
+  
   // Update project item
   const { data, error } = await supabase
     .from('project_items')
@@ -171,4 +197,207 @@ export async function removeProjectItem(projectItemId: string, projectId: string
     .eq('id', projectItemId);
   if (error) throw error;
   revalidatePath(`/projects/${projectId}`);
+}
+
+// ---- TAKE OFF ROWS ----
+
+export async function getTakeOffRows(projectItemId: string) {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from('take_off_rows')
+    .select('*')
+    .eq('project_item_id', projectItemId)
+    .order('created_at');
+  if (error) throw error;
+  return data;
+}
+
+export async function addTakeOffRow(
+  projectItemId: string,
+  projectId: string,
+  formData: {
+    description: string;
+    number_of_items: number;
+    length?: number;
+    width?: number;
+    height?: number;
+    unit_mass_per_meter?: number;
+  }
+) {
+  const supabase = createClient();
+
+  // Get the unit to determine calculation method
+  const { data: projectItem } = await supabase
+    .from('project_items')
+    .select(`
+      work_items!inner (
+        units!inner (abbreviation)
+      )
+    `)
+    .eq('id', projectItemId)
+    .single();
+
+  const unit = (projectItem as any)?.work_items?.units?.abbreviation;
+  if (!unit) throw new Error('Work item unit not found');
+  const { number_of_items, length, width, height, unit_mass_per_meter } = formData;
+
+  // Calculate quantity based on unit type
+  let calculated_quantity = 0;
+  switch (unit) {
+    case 'm': // Linear
+      calculated_quantity = number_of_items * (length || 0);
+      break;
+    case 'm²': // Area
+      calculated_quantity = number_of_items * (length || 0) * (width || 0);
+      break;
+    case 'm³': // Volume
+      calculated_quantity = number_of_items * (length || 0) * (width || 0) * (height || 0);
+      break;
+    case 'kg': // Mass
+      calculated_quantity = number_of_items * (length || 0) * (unit_mass_per_meter || 0);
+      break;
+    default:
+      calculated_quantity = number_of_items * (length || 0);
+  }
+
+  const { data, error } = await supabase
+    .from('take_off_rows')
+    .insert({
+      project_item_id: projectItemId,
+      description: formData.description,
+      number_of_items,
+      length,
+      width,
+      height,
+      unit_mass_per_meter,
+      calculated_quantity,
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  revalidatePath(`/projects/${projectId}`);
+  return data;
+}
+
+export async function updateTakeOffRow(
+  takeOffRowId: string,
+  projectId: string,
+  formData: {
+    description: string;
+    number_of_items: number;
+    length?: number;
+    width?: number;
+    height?: number;
+    unit_mass_per_meter?: number;
+  }
+) {
+  const supabase = createClient();
+
+  // Get the unit to determine calculation method
+  const { data: takeOffRow } = await supabase
+    .from('take_off_rows')
+    .select(`
+      project_item_id,
+      project_items!inner (
+        work_items!inner (
+          units!inner (abbreviation)
+        )
+      )
+    `)
+    .eq('id', takeOffRowId)
+    .single();
+
+  const unit = (takeOffRow as any)?.project_items?.work_items?.units?.abbreviation;
+  if (!unit) throw new Error('Work item unit not found');
+  const { number_of_items, length, width, height, unit_mass_per_meter } = formData;
+
+  // Calculate quantity based on unit type
+  let calculated_quantity = 0;
+  switch (unit) {
+    case 'm': // Linear
+      calculated_quantity = number_of_items * (length || 0);
+      break;
+    case 'm²': // Area
+      calculated_quantity = number_of_items * (length || 0) * (width || 0);
+      break;
+    case 'm³': // Volume
+      calculated_quantity = number_of_items * (length || 0) * (width || 0) * (height || 0);
+      break;
+    case 'kg': // Mass
+      calculated_quantity = number_of_items * (length || 0) * (unit_mass_per_meter || 0);
+      break;
+    default:
+      calculated_quantity = number_of_items * (length || 0);
+  }
+
+  const { data, error } = await supabase
+    .from('take_off_rows')
+    .update({
+      description: formData.description,
+      number_of_items,
+      length,
+      width,
+      height,
+      unit_mass_per_meter,
+      calculated_quantity,
+    })
+    .eq('id', takeOffRowId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  revalidatePath(`/projects/${projectId}`);
+  return data;
+}
+
+export async function removeTakeOffRow(takeOffRowId: string, projectId: string) {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from('take_off_rows')
+    .delete()
+    .eq('id', takeOffRowId);
+  if (error) throw error;
+  revalidatePath(`/projects/${projectId}`);
+}
+
+// ---- TAKE OFF EXPORT ----
+
+export async function getTakeOffDataForExport(projectId: string) {
+  const supabase = createClient();
+  
+  // Get project details
+  const { data: project, error: projectError } = await supabase
+    .from('projects')
+    .select('*')
+    .eq('id', projectId)
+    .single();
+  if (projectError) throw projectError;
+
+  // Get all take-off data organized by project items
+  const { data: boq, error: boqError } = await supabase
+    .from('project_boq')
+    .select('*')
+    .eq('project_id', projectId)
+    .order('category_name')
+    .order('subcategory_name');
+  if (boqError) throw boqError;
+
+  // Get take-off rows for each item
+  const takeOffData = await Promise.all(
+    boq.map(async (item) => {
+      const { data: rows, error } = await supabase
+        .from('take_off_rows')
+        .select('*')
+        .eq('project_item_id', item.project_item_id)
+        .order('created_at');
+      if (error) throw error;
+      return {
+        ...item,
+        take_off_rows: rows || [],
+      };
+    })
+  );
+
+  return { project, takeOffData };
 }

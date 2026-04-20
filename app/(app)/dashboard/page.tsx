@@ -9,7 +9,7 @@ export const revalidate = 0;
 async function getDashboardData() {
   const supabase = createClient();
   const [{ data: projects }, { data: items }] = await Promise.all([
-    supabase.from('projects').select('*').order('created_at', { ascending: false }),
+    supabase.from('project_summary').select('*').order('created_at', { ascending: false }),
     supabase.from('project_items').select('contract_amount, executed_amount'),
   ]);
   return { projects: projects || [], items: items || [] };

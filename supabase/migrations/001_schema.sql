@@ -122,6 +122,7 @@ SELECT
   p.status,
   p.start_date,
   p.end_date,
+  p.created_at,
   COUNT(pi.id)                            AS item_count,
   COALESCE(SUM(pi.contract_amount), 0)    AS total_contract_amount,
   COALESCE(SUM(pi.executed_amount), 0)    AS total_executed_amount,
@@ -132,7 +133,7 @@ SELECT
   END                                      AS progress_percent
 FROM projects p
 LEFT JOIN project_items pi ON pi.project_id = p.id
-GROUP BY p.id;
+GROUP BY p.id, p.name, p.location, p.status, p.start_date, p.end_date, p.created_at;
 
 -- Project BOQ view (full joined)
 CREATE OR REPLACE VIEW project_boq AS

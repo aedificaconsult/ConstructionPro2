@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import { Plus, Download, Pencil, Trash2, CheckCircle2, Layers } from 'lucide-react';
+import { useState, useMemo, useEffect } from 'react';
+import { Plus, Download, Pencil, Trash2, CheckCircle2, Layers, ClipboardList } from 'lucide-react';
 import type { Project, ProjectBOQRow, WorkItem, WorkCategory, Unit } from '@/types';
 import { ProgressBar, StatCard, StatusBadge, Field, Modal, ColorDot, EmptyState, Chip } from '@/components/ui';
 import { formatCurrency, calcProgress, progressColor } from '@/lib/utils';
 import {
   updateProjectStatus, addItemToProject, updateExecutedAmount, removeProjectItem,
+  getTakeOffRows, addTakeOffRow, updateTakeOffRow, removeTakeOffRow,
 } from '@/lib/actions/projects';
 import { exportBOQToExcel } from '@/lib/export';
 import { useRouter } from 'next/navigation';
@@ -22,7 +23,7 @@ type Props = {
 export default function ProjectTabs({ project, boq, allWorkItems, categories, units }: Props) {
   const router = useRouter();
   const [tab, setTab] = useState<'boq' | 'summary' | 'add'>('boq');
-  const [modal, setModal] = useState<null | 'status' | { type: 'progress'; row: ProjectBOQRow }>(null);
+  const [modal, setModal] = useState<null | 'status' | { type: 'progress'; row: ProjectBOQRow } | { type: 'takeoff'; row: ProjectBOQRow }>(null);
   const [loading, setLoading] = useState(false);
 
   // ---- Derived totals ----
@@ -86,13 +87,13 @@ export default function ProjectTabs({ project, boq, allWorkItems, categories, un
   // PROGRESS MODAL
   // ============================================================
   const ProgressModal = ({ row }: { row: ProjectBOQRow }) => {
-    const [execAmt, setExecAmt] = useState(String(row.executed_amount));
     const [execQty, setExecQty] = useState(String(row.executed_quantity));
     const [note, setNote] = useState('');
-    const pct = calcProgress(parseFloat(execAmt) || 0, Number(row.contract_amount));
+    const executedAmount = (parseFloat(execQty) || 0) * row.rate;
+    const pct = calcProgress(executedAmount, Number(row.contract_amount));
 
     return (
-      <Modal title="Update Executed Amount" onClose={() => setModal(null)} width={460}>
+      <Modal title="Update Executed Quantity" onClose={() => setModal(null)} width={460}>
         <div style={{ background: '#1A1F2E', borderRadius: 8, padding: '10px 14px', marginBottom: 20 }}>
           <p style={{ fontWeight: 600, color: '#E8EAF0', fontSize: 14 }}>{row.item_description}</p>
           <p style={{ fontSize: 12, color: '#8892A4', marginTop: 2 }}>
@@ -101,13 +102,12 @@ export default function ProjectTabs({ project, boq, allWorkItems, categories, un
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-          <Field label={`Executed Amount ($)`}>
-            <input className="input" type="number" min={0} max={row.contract_amount}
-              value={execAmt} onChange={e => setExecAmt(e.target.value)} />
-          </Field>
           <Field label={`Executed Qty (${row.unit})`}>
-            <input className="input" type="number" min={0}
+            <input className="input" type="number" min={0} max={row.contract_quantity}
               value={execQty} onChange={e => setExecQty(e.target.value)} />
+          </Field>
+          <Field label={`Executed Amount ($)`}>
+            <input className="input" type="number" min={0} value={executedAmount.toFixed(2)} readOnly />
           </Field>
         </div>
 
@@ -120,9 +120,9 @@ export default function ProjectTabs({ project, boq, allWorkItems, categories, un
               {pct.toFixed(1)}%
             </span>
           </div>
-          <input type="range" min={0} max={Number(row.contract_amount)} step={100}
-            value={parseFloat(execAmt) || 0}
-            onChange={e => setExecAmt(e.target.value)}
+          <input type="range" min={0} max={Number(row.contract_quantity)} step={0.1}
+            value={parseFloat(execQty) || 0}
+            onChange={e => setExecQty(e.target.value)}
             style={{ width: '100%' }} />
           <ProgressBar value={pct} showLabel={false} />
         </div>
@@ -135,13 +135,225 @@ export default function ProjectTabs({ project, boq, allWorkItems, categories, un
           <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setModal(null)}>Cancel</button>
           <button className="btn btn-primary" style={{ flex: 2 }} disabled={loading}
             onClick={async () => {
-              const amt = Math.min(parseFloat(execAmt) || 0, Number(row.contract_amount));
+              const qty = Math.min(parseFloat(execQty) || 0, Number(row.contract_quantity));
               setLoading(true);
-              await updateExecutedAmount(row.project_item_id, project.id, amt, parseFloat(execQty) || 0, note);
+              await updateExecutedAmount(row.project_item_id, project.id, qty, note);
               setModal(null); setLoading(false); router.refresh();
             }}>
             {loading ? 'Saving…' : 'Save Progress'}
           </button>
+        </div>
+      </Modal>
+    );
+  };
+
+  // ============================================================
+  // TAKE OFF SHEET MODAL
+  // ============================================================
+  const TakeOffModal = ({ row }: { row: ProjectBOQRow }) => {
+    const [takeOffRows, setTakeOffRows] = useState<any[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [editingRow, setEditingRow] = useState<string | null>(null);
+    const [formData, setFormData] = useState({
+      description: '',
+      number_of_items: '1',
+      length: '',
+      width: '',
+      height: '',
+      unit_mass_per_meter: '',
+    });
+
+    // Load take off rows on mount
+    useEffect(() => {
+      getTakeOffRows(row.project_item_id).then(setTakeOffRows);
+    }, [row.project_item_id]);
+
+    const resetForm = () => {
+      setFormData({
+        description: '',
+        number_of_items: '1',
+        length: '',
+        width: '',
+        height: '',
+        unit_mass_per_meter: '',
+      });
+      setEditingRow(null);
+    };
+
+    const handleAddRow = async () => {
+      if (!formData.description.trim()) {
+        alert('Please enter a description');
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const data = {
+          description: formData.description,
+          number_of_items: parseInt(formData.number_of_items) || 1,
+          length: formData.length ? parseFloat(formData.length) : undefined,
+          width: formData.width ? parseFloat(formData.width) : undefined,
+          height: formData.height ? parseFloat(formData.height) : undefined,
+          unit_mass_per_meter: formData.unit_mass_per_meter ? parseFloat(formData.unit_mass_per_meter) : undefined,
+        };
+
+        if (editingRow) {
+          await updateTakeOffRow(editingRow, project.id, data);
+        } else {
+          await addTakeOffRow(row.project_item_id, project.id, data);
+        }
+
+        // Refresh take off rows
+        const updatedRows = await getTakeOffRows(row.project_item_id);
+        setTakeOffRows(updatedRows);
+        resetForm();
+      } catch (error) {
+        alert('Error saving take off row');
+      }
+      setLoading(false);
+    };
+
+    const handleEditRow = (takeOffRow: any) => {
+      setEditingRow(takeOffRow.id);
+      setFormData({
+        description: takeOffRow.description,
+        number_of_items: takeOffRow.number_of_items.toString(),
+        length: takeOffRow.length?.toString() || '',
+        width: takeOffRow.width?.toString() || '',
+        height: takeOffRow.height?.toString() || '',
+        unit_mass_per_meter: takeOffRow.unit_mass_per_meter?.toString() || '',
+      });
+    };
+
+    const handleDeleteRow = async (takeOffRowId: string) => {
+      if (!confirm('Delete this take off row?')) return;
+      setLoading(true);
+      await removeTakeOffRow(takeOffRowId, project.id);
+      const updatedRows = await getTakeOffRows(row.project_item_id);
+      setTakeOffRows(updatedRows);
+      setLoading(false);
+    };
+
+    const totalExecuted = takeOffRows.reduce((sum, r) => sum + Number(r.calculated_quantity), 0);
+
+    return (
+      <Modal title={`Take Off Sheet - ${row.item_description}`} onClose={() => setModal(null)} width={800}>
+        <div style={{ background: '#1A1F2E', borderRadius: 8, padding: '10px 14px', marginBottom: 20 }}>
+          <p style={{ fontWeight: 600, color: '#E8EAF0', fontSize: 14 }}>{row.item_description}</p>
+          <p style={{ fontSize: 12, color: '#8892A4', marginTop: 2 }}>
+            {row.subcategory_name} · {row.category_name} · Unit: {row.unit}
+          </p>
+          <div style={{ marginTop: 8, padding: 8, background: '#0F1419', borderRadius: 4 }}>
+            <p style={{ fontSize: 12, color: '#8892A4' }}>
+              Total Executed Quantity: <strong style={{ color: '#4CAF82' }}>{totalExecuted.toFixed(3)} {row.unit}</strong>
+            </p>
+          </div>
+        </div>
+
+        {/* Add/Edit Form */}
+        <div style={{ marginBottom: 20, padding: 16, background: '#1A1F2E', borderRadius: 8 }}>
+          <h4 style={{ marginBottom: 12, color: '#E8EAF0', fontSize: 14 }}>
+            {editingRow ? 'Edit Take Off Row' : 'Add Take Off Row'}
+          </h4>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 12 }}>
+            <Field label="Description">
+              <input className="input" placeholder="e.g. Wall section A-B"
+                value={formData.description} onChange={e => setFormData(p => ({ ...p, description: e.target.value }))} />
+            </Field>
+            <Field label="Number of Items">
+              <input className="input" type="number" min={1}
+                value={formData.number_of_items} onChange={e => setFormData(p => ({ ...p, number_of_items: e.target.value }))} />
+            </Field>
+            <Field label={`Length (${row.unit === 'kg' ? 'm' : 'm'})`}>
+              <input className="input" type="number" step="0.001" placeholder="0.000"
+                value={formData.length} onChange={e => setFormData(p => ({ ...p, length: e.target.value }))} />
+            </Field>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 12 }}>
+            {(row.unit === 'm²' || row.unit === 'm³') && (
+              <Field label="Width (m)">
+                <input className="input" type="number" step="0.001" placeholder="0.000"
+                  value={formData.width} onChange={e => setFormData(p => ({ ...p, width: e.target.value }))} />
+              </Field>
+            )}
+            {row.unit === 'm³' && (
+              <Field label="Height (m)">
+                <input className="input" type="number" step="0.001" placeholder="0.000"
+                  value={formData.height} onChange={e => setFormData(p => ({ ...p, height: e.target.value }))} />
+              </Field>
+            )}
+            {row.unit === 'kg' && (
+              <Field label="Unit Mass (kg/m)">
+                <input className="input" type="number" step="0.001" placeholder="0.000"
+                  value={formData.unit_mass_per_meter} onChange={e => setFormData(p => ({ ...p, unit_mass_per_meter: e.target.value }))} />
+              </Field>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn btn-primary" disabled={loading} onClick={handleAddRow}>
+              {loading ? 'Saving…' : editingRow ? 'Update Row' : 'Add Row'}
+            </button>
+            {editingRow && (
+              <button className="btn btn-secondary" onClick={resetForm}>
+                Cancel Edit
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Take Off Rows Table */}
+        <div style={{ maxHeight: 400, overflowY: 'auto' }}>
+          {takeOffRows.length === 0 ? (
+            <p style={{ textAlign: 'center', color: '#8892A4', padding: 20 }}>
+              No take off rows added yet. Add your first measurement above.
+            </p>
+          ) : (
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Description</th>
+                  <th>Items</th>
+                  <th>Dimensions</th>
+                  <th>Quantity</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {takeOffRows.map((takeOffRow) => (
+                  <tr key={takeOffRow.id}>
+                    <td style={{ maxWidth: 200 }}>
+                      <p style={{ fontWeight: 500, color: '#E8EAF0', fontSize: 13 }}>{takeOffRow.description}</p>
+                    </td>
+                    <td>{takeOffRow.number_of_items}</td>
+                    <td style={{ fontSize: 12, color: '#8892A4' }}>
+                      {takeOffRow.length && `L: ${takeOffRow.length}m`}
+                      {takeOffRow.width && ` × W: ${takeOffRow.width}m`}
+                      {takeOffRow.height && ` × H: ${takeOffRow.height}m`}
+                      {takeOffRow.unit_mass_per_meter && ` × Mass: ${takeOffRow.unit_mass_per_meter}kg/m`}
+                    </td>
+                    <td style={{ fontWeight: 600, color: '#4CAF82' }}>
+                      {Number(takeOffRow.calculated_quantity).toFixed(3)} {row.unit}
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', gap: 4 }}>
+                        <button className="btn btn-ghost btn-icon btn-sm"
+                          onClick={() => handleEditRow(takeOffRow)}>
+                          <Pencil size={12} color="#C8A96E" />
+                        </button>
+                        <button className="btn btn-danger btn-icon btn-sm"
+                          onClick={() => handleDeleteRow(takeOffRow.id)}>
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </Modal>
     );
@@ -153,7 +365,7 @@ export default function ProjectTabs({ project, boq, allWorkItems, categories, un
   const AddItemsTab = () => {
     const [selCat, setSelCat] = useState(categories[0]?.id || '');
     const [selSub, setSelSub] = useState('');
-    const [amounts, setAmounts] = useState<Record<string, { amt: string; qty: string }>>({});
+    const [quantities, setQuantities] = useState<Record<string, string>>({});
     const [adding, setAdding] = useState<string | null>(null);
     const existingIds = new Set(boq.map(r => r.work_item_id));
 
@@ -170,12 +382,10 @@ export default function ProjectTabs({ project, boq, allWorkItems, categories, un
     });
 
     const handleAdd = async (wi: any) => {
-      const a = amounts[wi.id];
-      const amt = parseFloat(a?.amt || '');
-      const qty = parseFloat(a?.qty || '') || 0;
-      if (!amt || amt <= 0) { alert('Enter a contract amount.'); return; }
+      const qty = parseFloat(quantities[wi.id] || '') || 0;
+      if (!qty || qty <= 0) { alert('Enter a contract quantity.'); return; }
       setAdding(wi.id);
-      await addItemToProject(project.id, wi.id, amt, qty);
+      await addItemToProject(project.id, wi.id, qty);
       setAdding(null);
       router.refresh();
     };
@@ -234,8 +444,8 @@ export default function ProjectTabs({ project, boq, allWorkItems, categories, un
                         <td>
                           {!added && (
                             <input className="input" type="number" placeholder="0"
-                              value={amounts[wi.id]?.qty || ''}
-                              onChange={e => setAmounts(p => ({ ...p, [wi.id]: { ...p[wi.id], qty: e.target.value } }))}
+                              value={quantities[wi.id] || ''}
+                              onChange={e => setQuantities(p => ({ ...p, [wi.id]: e.target.value }))}
                               style={{ width: 100 }} />
                           )}
                         </td>
@@ -245,10 +455,9 @@ export default function ProjectTabs({ project, boq, allWorkItems, categories, un
                               <CheckCircle2 size={11} />Added
                             </span>
                           ) : (
-                            <input className="input" type="number" placeholder="e.g. 25000"
-                              value={amounts[wi.id]?.amt || ''}
-                              onChange={e => setAmounts(p => ({ ...p, [wi.id]: { ...p[wi.id], amt: e.target.value } }))}
-                              style={{ width: 130 }} />
+                            <span style={{ color: '#C8A96E', fontWeight: 600 }}>
+                              ${formatCurrency((parseFloat(quantities[wi.id] || '0') || 0) * wi.rate)}
+                            </span>
                           )}
                         </td>
                         <td>
@@ -423,6 +632,11 @@ export default function ProjectTabs({ project, boq, allWorkItems, categories, un
                                 <td>
                                   <div style={{ display: 'flex', gap: 4 }}>
                                     <button className="btn btn-ghost btn-icon btn-sm"
+                                      title="Take off sheet"
+                                      onClick={() => setModal({ type: 'takeoff', row })}>
+                                      <ClipboardList size={13} color="#5B8DEF" />
+                                    </button>
+                                    <button className="btn btn-ghost btn-icon btn-sm"
                                       title="Update progress"
                                       onClick={() => setModal({ type: 'progress', row })}>
                                       <Pencil size={13} color="#C8A96E" />
@@ -478,6 +692,9 @@ export default function ProjectTabs({ project, boq, allWorkItems, categories, un
       {modal === 'status' && <StatusModal />}
       {modal && typeof modal === 'object' && modal.type === 'progress' && (
         <ProgressModal row={modal.row} />
+      )}
+      {modal && typeof modal === 'object' && modal.type === 'takeoff' && (
+        <TakeOffModal row={modal.row} />
       )}
     </>
   );
