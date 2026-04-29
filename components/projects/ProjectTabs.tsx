@@ -9,7 +9,7 @@ import {
   updateProjectStatus, addItemToProject, updateExecutedAmount, removeProjectItem,
   getTakeOffRows, addTakeOffRow, updateTakeOffRow, removeTakeOffRow, getTakeOffDataForExport,
 } from '@/lib/actions/projects';
-import { exportBOQToExcel, exportTakeOffToPDF } from '@/lib/export';
+import { exportBOQToExcel, exportTakeOffToPDF, exportTakeOffToExcel } from '@/lib/export';
 import { useRouter } from 'next/navigation';
 
 type Props = {
@@ -58,6 +58,19 @@ export default function ProjectTabs({ project, boq, allWorkItems, categories, un
       setLoading(true);
       const { project: projectData, takeOffData } = await getTakeOffDataForExport(project.id);
       await exportTakeOffToPDF(projectData, takeOffData);
+    } catch (error) {
+      console.error('Error exporting takeoff:', error);
+      alert('Failed to export takeoff. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleExportTakeOffExcel = async () => {
+    try {
+      setLoading(true);
+      const { project: projectData, takeOffData } = await getTakeOffDataForExport(project.id);
+      exportTakeOffToExcel(projectData, takeOffData);
     } catch (error) {
       console.error('Error exporting takeoff:', error);
       alert('Failed to export takeoff. Please try again.');
@@ -522,7 +535,10 @@ export default function ProjectTabs({ project, boq, allWorkItems, categories, un
             <Download size={14} />Export BOQ
           </button>
           <button className="btn btn-secondary btn-sm" onClick={handleExportTakeOff} disabled={loading}>
-            <Download size={14} />{loading ? 'Exporting...' : 'Export Takeoff'}
+            <Download size={14} />Export Takeoff PDF
+          </button>
+          <button className="btn btn-secondary btn-sm" onClick={handleExportTakeOffExcel} disabled={loading}>
+            <Download size={14} />Export Takeoff Excel
           </button>
         </div>
       </div>
