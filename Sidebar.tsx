@@ -1,0 +1,1 @@
+refactored responsive mobile/desktop sidebar with overlay, hamburger menu for mobile, auto-close on nav click, collapse feature for desktop, and smooth transitions using Tailwind CSS
