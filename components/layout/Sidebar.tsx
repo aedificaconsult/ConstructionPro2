@@ -1,103 +1,76 @@
-'use client';
+import React, { useEffect, useState } from 'react';
+import { MenuIcon } from '@heroicons/react/outline';
 
-import { useState } from 'react';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import {
-  LayoutDashboard, FolderKanban, BookOpen, Tag, Ruler,
-  ChevronLeft, ChevronRight, Building2, HardHat,
-} from 'lucide-react';
+const Sidebar = () => {
+    const [isOpen, setIsOpen] = useState(false);
+    const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 768);
 
-const NAV = [
-  { href: '/dashboard',          icon: LayoutDashboard, label: 'Dashboard' },
-  { href: '/projects',           icon: FolderKanban,    label: 'Projects' },
-  { href: '/library/items',      icon: BookOpen,        label: 'Work Library' },
-  { href: '/library/categories', icon: Tag,             label: 'Categories' },
-  { href: '/settings/units',     icon: Ruler,           label: 'Units' },
-];
+    useEffect(() => {
+        const handleResize = () => {
+            setIsDesktop(window.innerWidth >= 768);
+        };
 
-export default function Sidebar() {
-  const pathname = usePathname();
-  const [collapsed, setCollapsed] = useState(false);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
 
-  return (
-    <aside
-      style={{
-        width: collapsed ? 64 : 240,
-        minHeight: '100vh',
-        background: '#1A1F2E',
-        borderRight: '1px solid #3A4255',
-        display: 'flex',
-        flexDirection: 'column',
-        transition: 'width 0.25s cubic-bezier(0.4,0,0.2,1)',
-        overflow: 'hidden',
-        flexShrink: 0,
-        position: 'sticky',
-        top: 0,
-        height: '100vh',
-      }}
-    >
-      {/* Logo */}
-      <div style={{ padding: collapsed ? '20px 14px' : '20px 18px', borderBottom: '1px solid #3A4255' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{
-            width: 34, height: 34, borderRadius: 9,
-            background: 'linear-gradient(135deg,#C8A96E,#A87830)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-          }}>
-            <HardHat size={18} color="#111520" />
-          </div>
-          {!collapsed && (
-            <div style={{ overflow: 'hidden', whiteSpace: 'nowrap' }}>
-              <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 16, fontWeight: 800, color: '#E8EAF0' }}>
-                Construct<span style={{ color: '#C8A96E' }}>Pro</span>
-              </span>
-              <p style={{ fontSize: 10, color: '#5A6475', marginTop: 1, letterSpacing: '0.5px' }}>
-                PROJECT MANAGEMENT
-              </p>
-            </div>
-          )}
+    useEffect(() => {
+        // Check localStorage for the sidebar state
+        const storedState = localStorage.getItem('sidebarState');
+        if (storedState) {
+            setIsOpen(JSON.parse(storedState));
+        }
+    }, []);
+
+    const handleToggle = () => {
+        setIsOpen(!isOpen);
+        localStorage.setItem('sidebarState', JSON.stringify(!isOpen));
+    };
+
+    const handleNavClick = () => {
+        if (!isDesktop) {
+            setIsOpen(false);
+            localStorage.setItem('sidebarState', 'false');
+        }
+    };
+
+    return (
+        <div>
+            {isDesktop ? (
+                <div className={`flex flex-col ${isOpen ? 'w-64' : 'w-20'} transition-all duration-300`}>
+                    <div className="flex items-center justify-between p-4 bg-gray-800 text-white">
+                        <h2 className={`text-xl ${isOpen ? 'block' : 'hidden'}`}>Navigation</h2>
+                        <button onClick={handleToggle} className="text-xl">
+                            {isOpen ? '⨯' : '☰'}
+                        </button>
+                    </div>
+                    <nav className="flex flex-col">
+                        <a onClick={handleNavClick} className="p-4 hover:bg-gray-700">Item 1</a>
+                        <a onClick={handleNavClick} className="p-4 hover:bg-gray-700">Item 2</a>
+                        <a onClick={handleNavClick} className="p-4 hover:bg-gray-700">Item 3</a>
+                    </nav>
+                </div>
+            ) : (
+                <div>
+                    <button onClick={handleToggle} className="p-4">
+                        <MenuIcon className="h-6 w-6" />
+                    </button>
+                    {isOpen && (
+                        <div className="fixed inset-0 bg-black bg-opacity-50 z-50"> {/* Overlay */}
+                            <div className="absolute left-0 top-0 w-2/3 bg-white h-full shadow-lg transition-transform transform -translate-x-full duration-300" style={{ transform: isOpen ? 'translateX(0)' : 'translateX(-100%)' }}>
+                                <button onClick={handleNavClick} className="absolute right-0 p-4">⨯</button>
+                                <nav className="flex flex-col p-4">
+                                    <a onClick={handleNavClick} className="p-4 hover:bg-gray-200">Item 1</a>
+                                    <a onClick={handleNavClick} className="p-4 hover:bg-gray-200">Item 2</a>
+                                    <a onClick={handleNavClick} className="p-4 hover:bg-gray-200">Item 3</a>
+                                </nav>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
         </div>
-      </div>
+    );
+};
 
-      {/* Nav */}
-      <nav style={{ padding: '14px 8px', flex: 1, overflowY: 'auto' }}>
-        {!collapsed && (
-          <p style={{ fontSize: 10, color: '#5A6475', fontWeight: 600, textTransform: 'uppercase',
-            letterSpacing: '0.8px', padding: '0 8px', marginBottom: 8 }}>
-            Navigation
-          </p>
-        )}
-        {NAV.map(({ href, icon: Icon, label }) => {
-          const active = pathname === href || pathname.startsWith(href + '/');
-          return (
-            <Link key={href} href={href} style={{ textDecoration: 'none' }}>
-              <div
-                className={`nav-item${active ? ' active' : ''}`}
-                title={collapsed ? label : undefined}
-                style={{ justifyContent: collapsed ? 'center' : 'flex-start', marginBottom: 2 }}
-              >
-                <Icon size={18} style={{ flexShrink: 0 }} />
-                {!collapsed && <span style={{ whiteSpace: 'nowrap' }}>{label}</span>}
-              </div>
-            </Link>
-          );
-        })}
-      </nav>
-
-      {/* Collapse toggle */}
-      <div style={{ padding: '12px 8px', borderTop: '1px solid #3A4255' }}>
-        <button
-          onClick={() => setCollapsed(c => !c)}
-          className="nav-item"
-          style={{
-            width: '100%', border: 'none', cursor: 'pointer', background: 'transparent',
-            justifyContent: collapsed ? 'center' : 'flex-start',
-          }}
-        >
-          {collapsed ? <ChevronRight size={18} /> : <><ChevronLeft size={18} /><span>Collapse</span></>}
-        </button>
-      </div>
-    </aside>
-  );
-}
+export default Sidebar;
